@@ -70,7 +70,7 @@ Cell& Board::get_cell(Pos p)
     return cells[p.getx()][p.gety()];
 }
 
-Cell& Board::get_cell(int x, int y)
+Cell& Board::get_cell(const int x, const int y)
 {
     return cells[x][y];
 }

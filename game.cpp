@@ -7,6 +7,7 @@
 #include <windows.h>
 #include<iostream>
 #include <stdio.h>
+#include<string>
 
 using namespace  std;
 #pragma comment(lib, "Ws2_32.lib")
@@ -187,7 +188,9 @@ bool Game::start_client(){
 
 void Game::start(){
     string reg = "REGISTER " + teamname + '\n';
-    int l = send(sock , reg.c_str() , strlen( reg.c_str() ) , 0);
+    int l = send(sock , reg.c_str() , strlen( reg.c_str() ) , 0);    
+    int flag=0;
+    setsockopt(sock, IPPROTO_TCP, TCP_NODELAY, (char *) &flag, sizeof(int));
     if (l< 0){
         printf("ERROR!");
     };
@@ -209,9 +212,13 @@ void Game::start(){
         }
 
         msg_send="";
+        if(strcmp("FINISH",(char*)buf)==0)
+            break;
         play_round(buf);
         msg_send += "\n";
         send(sock,msg_send.c_str(),strlen(msg_send.c_str()),0);
+        int flag = 0;
+        setsockopt(sock, IPPROTO_TCP, TCP_NODELAY, (char *) &flag, sizeof(int));
         free(buf);
     }
 }
@@ -228,6 +235,7 @@ void Game::play_round(char *message)
 
     myinhandcheckernum = m;
     oppinhandcheckernum = o;
+    cycle = round;
 
     if(myinhandcheckernum > 0)
         put_strategy(this);
@@ -235,8 +243,6 @@ void Game::play_round(char *message)
         move_strategy(this);
     if(dooz)
         pop_strategy(this);
-
-    cycle = round;
 }
 
 int Game::get_myinhandcheckernum()
@@ -249,10 +255,29 @@ int Game::get_oppinhandcheckernum()
     return oppinhandcheckernum;
 }
 
+void Game::update_cell_arrays()
+{
+    board->get_emptyCells().clear();
+    board->get_myCells().clear();
+    board->get_oppCells().clear();
+
+    for(int i=0;i<8;i++)
+        for(int j=0;j<3;j++)
+        {
+            if(board->get_cell(i,j).get_checker()==nullptr)
+                board->get_emptyCells().push_back(&board->get_cell(i,j));
+            else if(board->get_cell(i,j).get_checker()->isMyChecker())
+                board->get_myCells().push_back(&board->get_cell(i,j));
+            else
+                board->get_oppCells().push_back(&board->get_cell(i,j));
+        }
+}
+
 void Game::put(Pos p)
 {
     msg_send = "put "+std::to_string(p.getx())+"," +std::to_string(p.gety());
-    this->get_board().set_cell(p.getx() , p.gety() , 'm');
+    board->get_cell(p.getx(),p.gety()).set_checker(p.getx(),p.gety(),'m');
+    update_cell_arrays();
     check_dooz(p);
 }
 
@@ -262,57 +287,52 @@ void Game::pop(Checker* c)
     board->get_cell(c->get_pos()).checker=nullptr;
 }
 
-
 void Game::move(Checker* c,Pos newpos)
 {
     msg_send = "mov "+std::to_string(c->get_pos().getx())+','+std::to_string(c->get_pos().gety())+','+std::to_string(newpos.getx())+','+std::to_string(newpos.gety());
     board->get_cell(c->get_pos()).checker=nullptr;
-    board->set_cell(newpos.getx() , newpos.gety() , 'm');
+    board->get_cell(newpos).set_checker(newpos.getx(),newpos.gety(),'m');
+    update_cell_arrays();
     check_dooz(newpos);
 }
 
-
-
 void Game::check_dooz(Pos p)
 {
-
-
-    bool status=true;
-    for(int j=0;j<3;j++)
-        if(board->get_cells()[p.getx()][j].get_checker()==nullptr || !board->get_cells()[p.getx()][j].get_checker()->isMyChecker())
+    bool status = true;
+    for (int j = 0; j < 3; j++)
+        if (board->get_cells()[p.getx()][j].get_checker() == nullptr || !board->get_cells()[p.getx()][j].get_checker()->isMyChecker())
         {
-            status=false;
+            status = false;
             break;
         }
-    if(status)
-    {
+    if (status) {
         dooz = true;
         return;
     }
 
     status = true;
-    bool status2 =true;
-    if(p.getx()%2==0)
-    {
-        for(int i=0;i<3;i++)
-            if(board->get_cell((p.getx()+i)%8,p.gety()).get_checker()==nullptr || !board->get_cell((p.getx()+i)%8,p.gety()).get_checker()->isMyChecker())
+    if (p.getx() % 2 == 0) {
+        for (int i = 0; i < 3; i++)
+            if (board->get_cell((p.getx() + i) % 8, p.gety()).get_checker() == nullptr || !board->get_cell((p.getx() + i) % 8, p.gety()).get_checker()->isMyChecker())
                 status = false;
-        for(int i=0;i<3;i++)
-            if(board->get_cell((p.getx()-i+8)%8,p.gety()).get_checker()==nullptr || !board->get_cell((p.getx()-i+8)%8,p.gety()).get_checker()->isMyChecker())
-                status2 = false;
-    }
-    else
-    {
-        for(int i=-1;i<2;i++)
-            if(board->get_cell((p.getx()+i)%8,p.gety()).get_checker()==nullptr || !board->get_cell((p.getx()+i)%8,p.gety()).get_checker()->isMyChecker())
+        if(status)
+        {
+            dooz = true;
+            return;
+        }
+        status = true;
+        for (int i = 0; i < 3; i++)
+            if (board->get_cell((p.getx() - i + 8) % 8, p.gety()).get_checker() == nullptr || !board->get_cell((p.getx() - i + 8) % 8, p.gety()).get_checker()->isMyChecker())
+                status = false;
+    } else {
+        for (int i = -1; i < 2; i++)
+            if (board->get_cell((p.getx() + i) % 8, p.gety()).get_checker() == nullptr || !board->get_cell((p.getx() + i) % 8, p.gety()).get_checker()->isMyChecker())
             {
-                status=false;
-                status2=false;
+                status = false;
             }
 
     }
-    if(status || status2)
-    {
+    if (status) {
         dooz = true;
     }
 }

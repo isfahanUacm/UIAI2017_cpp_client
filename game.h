@@ -32,6 +32,7 @@ class Game
     struct sockaddr_in server;
     string teamname;
     int cycle;
+    void Game::update_cell_arrays();
 public:
     Game();
     Game(string, int, string);

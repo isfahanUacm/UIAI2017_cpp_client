@@ -2,6 +2,8 @@
 
 void Cell::set_checker(int x, int y, char c)
 {
+    if(c=='e')
+        checker = nullptr;
     checker = new Checker(x,y,c);
 }
 
